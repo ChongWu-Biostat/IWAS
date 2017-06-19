@@ -1,0 +1,11 @@
+### weights dictionary
+### volume of ROI
+Voldmn <- c(
+  "ST31CV", "ST90CV",  # Inferior parietal
+  "ST32CV", "ST91CV", # Inferior temporal
+  "ST39CV", "ST98CV",  # Medial orbitofrontal
+  "ST44CV", "ST103CV", # Parahippocampal
+  "ST52CV", "ST111CV", # Precuneus
+  "ST50CV", "ST109CV", # Posterior cingulate
+  "ST29SV", "ST88SV") # Hippocampus
+
