@@ -1,5 +1,3 @@
-
-setwd("/Users/chong/Dropbox (Personal)/Chong Wu/Undergoing/TWAS/IWAS_source")
 library(data.table)
 library(matlib)
 library(Rcpp)
@@ -18,35 +16,27 @@ option_list = list(
 make_option("--sumstats", action="store", default=NA, type='character',
 help="summary statistics (rds file and must have SNP and Z column headers) [required]"),
 make_option("--out", action="store", default=NA, type='character',
-help="Path to output file [required]"),
+help="Path to output files [required]"),
 make_option("--weights", action="store", default=NA, type='character',
-help="File listing molecular weight (rds files and must have columns ID,CHR,P0,P1, Weights) [required]"),
+help="File listing molecular weight (rds files and must have columns WGT,ID,CHR,P0,P1) [required]"),
 make_option("--ref_ld", action="store", default=NA, type='character',
 help="Reference LD files in binary PLINK format [required]"),
 make_option("--gene_list", action="store", default=NA, type='character',
-help="Gene sets we want to analyze, currently only gene sets from a single chromosome are supported [required]"),
+help="Gene list we want to analyze, currently only single chromosome analyses are performed [required]"),
 make_option("--test_type", action="store", default="aSPU", type='character',
 help="Test we want to perform, the default is aSPU for single weights. If we want to combine mulitple weights, we can set it to daSPU [default: aSPU]"),
 make_option("--weight_type", action="store", default="ST31TA", type='character',
-help="Weight we want to use. [default: ST31TA]")
-
+help="Weight we want to use. [default: ST31TA]"),
+make_option("--Rsq_cutoff", action="store", default=0.01, type='double',
+help="R sqaure cutoff for genes we want to analyze. [default:0.01]"),
+make_option("--max_nperm", action="store", default= 1000000, type='integer',
+help="maximum number of permutation for aSPU or daSPU. [default: 1000000]")
 )
 
 opt = parse_args(OptionParser(option_list=option_list))
 
 
-
-
-opt = list(
-sumstats="./Example/IGAP_chr22.rds",
-out= "./Example/example_res.rds",
-weights = "./WEIGHTS/ADNI1_wgt.rds",
-ref_ld = "./LDREF/hapmap_CEU_r23a_hg19",
-gene_list ="./Example/gene_list.txt",
-test_type ="aSPU",
-weight_type = "ST31CV")
-
-# This function is from TWAS (http://gusevlab.org/projects/fusion/#typical-analysis-and-output)
+# This function (allele.qc) is downloaded from TWAS (http://gusevlab.org/projects/fusion/#typical-analysis-and-output)
 allele.qc = function(a1,a2,ref1,ref2) {
     ref = ref1
     flip = ref
@@ -182,16 +172,16 @@ for ( w in 1:nrow(wgtlist0) ) {
         wgt.matrix = wgt.matrix[,colSums(is.na(wgt.matrix)) < 10]
         
         
-        R2 = wgt.matrix[1,colnames(wgt.matrix) %in% paste0("CV_Rsq_",1:14)]
+        R2 = wgt.matrix[1,colnames(wgt.matrix) %in% paste0("Rsq_",1:14)]
         R2.name = names(R2)
         R2 = as.numeric(R2)
         names(R2) = R2.name
-        R2  = R2[R2 >0.01]
+        R2  = R2[R2 > opt$Rsq_cutoff]
         
         
         tmp.name = names(R2)
         
-        tmp.index = as.numeric(gsub("CV_Rsq_","",tmp.name))
+        tmp.index = as.numeric(gsub("Rsq_","",tmp.name))
         tmp.index = tmp.index[!is.na(tmp.index)]
         
         wgt.matrix = wgt.matrix[,c("gene","chr","start","end","Nsnp","SNP","ref","alt","alpha",Voldmn[tmp.index])]
@@ -290,20 +280,24 @@ for ( w in 1:nrow(wgtlist0) ) {
                 
                 res = aSPU(U,V,weight,pow=c(1:6,Inf),n.perm = 1e3)
                 
-                if(min(res$pvs) < 5e-3) {
+                if(min(res$pvs) < 5e-3 & opt$max_nperm >=1e4) {
                     res = aSPU(U,V,weight,pow=c(1:6,Inf),n.perm = 1e4)
                 }
                 
-                if(min(res$pvs) < 5e-4) {
+                if(min(res$pvs) < 5e-4  & opt$max_nperm >=1e5) {
                     res = aSPU(U,V,weight,pow=c(1:6,Inf),n.perm = 1e5)
                 }
                 
-                if(min(res$pvs) < 5e-5) {
+                if(min(res$pvs) < 5e-5  & opt$max_nperm >=1e6) {
                     res = aSPU(U,V,weight,pow=c(1:6,Inf),n.perm = 1e6)
                 }
                 
-                if(min(res$pvs) < 5e-6) {
+                if(min(res$pvs) < 5e-6  & opt$max_nperm >=1e7) {
                     res = aSPU(U,V,weight,pow=c(1:6,Inf),n.perm = 1e7)
+                }
+                
+                if(min(res$pvs) < 5e-7  & opt$max_nperm >=1e8) {
+                    res = aSPU(U,V,weight,pow=c(1:6,Inf),n.perm = 1e8)
                 }
                 
                 out.res[w,] = c(as.character(wgtlist0[w,"gene"]),wgtlist0[w,"CHR"],wgtlist0[w,"startbp"]- expand,wgtlist0[w,"endbp"] - expand,sum(weight!=0),pSum,pSSU,res$pvs)
@@ -312,21 +306,25 @@ for ( w in 1:nrow(wgtlist0) ) {
             } else {
                 daSPU.p = daSPU(U,V,weight,pow1=c(1,2,3,Inf),pow2=c(1,2,3,Inf),n.perm = 1e3)
                 
-                if(min(daSPU.p) < 5e-3) {
+                if(min(daSPU.p) < 5e-3 & opt$max_nperm >=1e4) {
                     daSPU.p = daSPU(U,V,weight,pow1=c(1,2,3,Inf),pow2=c(1,2,3,Inf),n.perm = 1e4)
                 }
                 
                 
-                if(min(daSPU.p) < 5e-4) {
+                if(min(daSPU.p) < 5e-4 & opt$max_nperm >=1e5) {
                     daSPU.p = daSPU(U,V,weight,pow1=c(1,2,3,Inf),pow2=c(1,2,3,Inf),n.perm = 1e5)
                 }
                 
-                if(min(daSPU.p) < 5e-5) {
+                if(min(daSPU.p) < 5e-5 & opt$max_nperm >=1e6) {
                     daSPU.p = daSPU(U,V,weight,pow1=c(1,2,3,Inf),pow2=c(1,2,3,Inf),n.perm = 1e6)
                 }
                 
-                if(min(daSPU.p) < 5e-6) {
+                if(min(daSPU.p) < 5e-6 & opt$max_nperm >=1e7) {
                     daSPU.p = daSPU(U,V,weight,pow1=c(1,2,3,Inf),pow2=c(1,2,3,Inf),n.perm = 1e7)
+                }
+                
+                if(min(daSPU.p) < 5e-7 & opt$max_nperm >=1e8) {
+                    daSPU.p = daSPU(U,V,weight,pow1=c(1,2,3,Inf),pow2=c(1,2,3,Inf),n.perm = 1e8)
                 }
                 
                 pvalue = daSPU.p
@@ -340,7 +338,6 @@ for ( w in 1:nrow(wgtlist0) ) {
     }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
 }
 
-out.res = out.res[!is.na(out.res[,1]),]
 saveRDS(out.res,opt$out)
 
 write.table(out.res, "output.txt")
