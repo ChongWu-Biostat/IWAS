@@ -18,17 +18,17 @@ option_list = list(
 make_option("--sumstats", action="store", default=NA, type='character',
 help="summary statistics (rds file and must have SNP and Z column headers) [required]"),
 make_option("--out", action="store", default=NA, type='character',
-help="Path to output files [required]"),
+help="Path to output file [required]"),
 make_option("--weights", action="store", default=NA, type='character',
-help="File listing molecular weight (rds files and must have columns WGT,ID,CHR,P0,P1) [required]"),
+help="File listing molecular weight (rds files and must have columns ID,CHR,P0,P1, Weights) [required]"),
 make_option("--ref_ld", action="store", default=NA, type='character',
 help="Reference LD files in binary PLINK format [required]"),
 make_option("--gene_list", action="store", default=NA, type='character',
-help="Gene list we want to analyze, currently only single chromosome analyses are performed [required]"),
+help="Gene sets we want to analyze, currently only gene sets from a single chromosome are supported [required]"),
 make_option("--test_type", action="store", default="aSPU", type='character',
 help="Test we want to perform, the default is aSPU for single weights. If we want to combine mulitple weights, we can set it to daSPU [default: aSPU]"),
 make_option("--weight_type", action="store", default="ST31TA", type='character',
-help="Weight we want to use. This part need inputs from Zhiyuan. [default: ST31TA]")
+help="Weight we want to use. [default: ST31TA]")
 
 )
 
@@ -340,6 +340,7 @@ for ( w in 1:nrow(wgtlist0) ) {
     }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
 }
 
+out.res = out.res[!is.na(out.res[,1]),]
 saveRDS(out.res,opt$out)
 
 write.table(out.res, "output.txt")
