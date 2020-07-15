@@ -14,7 +14,7 @@ source("dist_support.R")
 # Some codes are directly copied from TWAS source codes
 option_list = list(
 make_option("--sumstats", action="store", default=NA, type='character',
-help="summary statistics (rds file and must have SNP and Z column headers) [required]"),
+help="summary statistics (must have SNP and Z column headers; support rds and txt format) [required]"),
 make_option("--out", action="store", default=NA, type='character',
 help="Path to output files [required]"),
 make_option("--weights", action="store", default=NA, type='character',
@@ -102,7 +102,17 @@ wgtlist0[,4] = as.character(wgtlist0[,4])
 snp.inf = unique(weights[,"SNP"])
 
 
-sumstat.orgin = readRDS(opt$sumstats)
+if(grepl(".rds",opt$sumstats)) {
+    sumstat.orgin = readRDS(opt$sumstats)
+} else if (grepl(".txt",opt$sumstats)) {
+    sumstat.orgin = fread(opt$sumstats)
+    sumstat.orgin = as.data.frame(sumstat.orgin)
+} else {
+    sumstat.orgin = fread(opt$sumstats)
+    sumstat.orgin = as.data.frame(sumstat.orgin)
+    warning("We try to read GWAS summary data other than txt and rds format. The data may not read properly")
+}
+
 m = match(snp.inf, sumstat.orgin$SNP_map)
 sumstat.orgin = sumstat.orgin[m,]
 
@@ -128,7 +138,7 @@ for ( w in 1:nrow(wgtlist0) ) {
         
         write.table(mysnps,paste0("mysnps_",genename,".txt"),row.names=F,col.names=F,quote=F,append=F)
         
-        system(paste0("./plink --bfile ",opt$ref_ld," --extract mysnps_", genename,".txt --maf 0.01 --make-bed --out test_",genename))
+        system(paste0("plink --bfile ",opt$ref_ld," --extract mysnps_", genename,".txt --maf 0.01 --make-bed --out test_",genename))
         
         # Load in reference data
         genos = read_plink(paste0("test_",genename),impute="avg")
@@ -338,6 +348,6 @@ for ( w in 1:nrow(wgtlist0) ) {
     }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
 }
 
-saveRDS(out.res,opt$out)
-
-write.table(out.res, "output.txt")
+#saveRDS(out.res,opt$out)
+out.res = out.res[!is.na(out.res[,2]),]
+write.table(out.res, opt$out,quote=F,row.names=F,col.name=T)
